@@ -1,3 +1,4 @@
+# vim:fileencoding=utf-8:et
 import os
 from git import Repo, GitCommandError, InvalidGitRepositoryError
 from powerline.segments import Segment, with_docstring
@@ -5,8 +6,7 @@ from powerline.theme import requires_segment_info
 
 
 @requires_segment_info
-class GitStatus(Segment):
-
+class GitStatusSegment(Segment):
     def _map_gitdir(self, gfile):
         return os.path.join(self.repo.git_dir, gfile)
 
@@ -102,29 +102,55 @@ class GitStatus(Segment):
     def _stashed(self):
         return len(filter(lambda x: x, self.repo.git.stash('list').split('\n')))
 
-    def __call__(self, logger, segment_info, use_dash_c=True):
-        logger.debug('Running gitstatus')
+    def __call__(self, pl, segment_info, use_dash_c=True):
+        pl.debug('Running gitstatus')
         cwd = segment_info['getcwd']()
         if not cwd:
             return
         try:
-            self.repo = git.Repo(cwd)
+            self.repo = Repo(cwd)
         except InvalidGitRepositoryError:
             return
 
         return self.build_segments()
 
-    def build_segments(self, branch, detached, behind, ahead, staged, unmerged, changed, untracked, stashed):
-            if detached:
+    def build_segments(self):
+            if self._action:
+                branch_group = 'gitstatus_branch_action'
+            elif self.repo.head.is_detached:
                 branch_group = 'gitstatus_branch_detached'
-            elif staged or unmerged or changed or untracked:
+            elif self._staged or self._unstaged or self._untracked:
                 branch_group = 'gitstatus_branch_dirty'
             else:
                 branch_group = 'gitstatus_branch_clean'
 
-            segments = [
-                {'contents': u'\ue0a0 %s' % branch, 'highlight_groups': [branch_group, 'gitstatus_branch', 'gitstatus'], 'divider_highlight_group': 'gitstatus:divider'}
-            ]
+            if self._action:
+                segments = [
+                    {
+                        'contents': '{0}|{1}'.format(
+                            self._branch,
+                            self._action
+                        ),
+                        'highlight_groups': [
+                            branch_group,
+                            'gitstatus_branch',
+                            'gitstatus'
+                        ],
+                        'divider_highlight_group': 'gitstatus:divider'
+                    }
+                ]
+            else:
+                segments = [
+                    {
+                        'contents': self._branch,
+                        'highlight_groups': [
+                            branch_group,
+                            'gitstatus_branch',
+                            'gitstatus'
+                        ],
+                        'divider_highlight_group': 'gitstatus:divider'
+                    }
+                ]
 
             if self._staged:
                 segments.append({'contents': '●', 'highlight_groups': ['gitstatus_staged', 'gitstatus'], 'divider_highlight_group': 'gitstatus:divider'})
@@ -139,14 +165,6 @@ class GitStatus(Segment):
 
 gitstatus = with_docstring(GitStatusSegment(),
 '''Return the status of a Git working copy.
-It will show the branch-name, or the commit hash if in detached head state.
-It will also show the number of commits behind, commits ahead, staged files,
-unmerged files (conflicts), changed files, untracked files and stashed files
-if that number is greater than zero.
-:param bool use_dash_c:
-    Call git with ``-C``, which is more performant and accurate, but requires git 1.8.5 or higher.
-    Otherwise it will traverse the current working directory up towards the root until it finds a ``.git`` directory, then use ``--git-dir`` and ``--work-tree``.
-    True by default.
 Divider highlight group used: ``gitstatus:divider``.
 Highlight groups used: ``gitstatus_branch_detached``, ``gitstatus_branch_dirty``, ``gitstatus_branch_clean``, ``gitstatus_branch``, ``gitstatus_behind``, ``gitstatus_ahead``, ``gitstatus_staged``, ``gitstatus_unmerged``, ``gitstatus_changed``, ``gitstatus_untracked``, ``gitstatus_stashed``, ``gitstatus``.
 ''')
