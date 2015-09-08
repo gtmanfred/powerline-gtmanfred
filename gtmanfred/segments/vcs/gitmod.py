@@ -74,7 +74,10 @@ class GitStatusSegment(Segment):
             return self.repo.git.rev_parse('HEAD', short=True)
 
     def update_index(self):
-        self.repo.git.update_index(q=True, ignore_submodules=True, refresh=True)
+        try:
+            self.repo.git.update_index(q=True, ignore_submodules=True, refresh=True)
+        except GitCommandError:
+            pass
 
     @property
     def _staged(self):
